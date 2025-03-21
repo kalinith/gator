@@ -19,3 +19,20 @@ func TestOpenConfig(t *testing.T) {
 	}
 
 }
+
+func TestSetUser(t *testing.T) {
+	empty_config := Config{}
+	config, err := Read()
+	if err != nil {
+		t.Errorf("failed to access the config file. Error: %s", err)
+		return
+	}
+	if config == empty_config {
+		t.Errorf("Read() returned an empty Config struct when it should contain data")
+	}
+	name := "Carl"
+	err = config.SetUser(name)
+	if err != nil {
+		t.Errorf("error while saving username to config file:%s", err)
+	}
+}

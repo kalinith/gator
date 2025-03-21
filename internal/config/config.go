@@ -22,6 +22,25 @@ func getConfigFilePath() (string, error) {
 	return fmt.Sprintf("%s/%s", homefolder, configFileName), nil
 }
 
+func writeConfigFile(config Config) error {
+
+	filepath, err := getConfigFilePath()
+	if err != nil {
+		return err
+	}
+
+	marshalledconfig, err := json.Marshal(config)
+    if err != nil {
+        return err
+    }
+	
+	err = os.WriteFile(filepath, marshalledconfig, 0666)
+	if err != nil {
+		return fmt.Errorf("Error writing file:%s",err)
+	}
+	return nil
+}
+
 func Read() (Config, error) {
 
 	filepath, err := getConfigFilePath()
@@ -46,6 +65,14 @@ func Read() (Config, error) {
 }
 
 
-func (Config)SetUser(username string) {
+func (c Config)SetUser(username string) error {
 
+	c.CurrentUser = username
+
+	err := writeConfigFile(c)
+	if err != nil {
+		return err
+	}
+	
+	return nil
 }
