@@ -1,3 +1,3 @@
-module github.com/kalinith/Gator
+module Gator
 
 go 1.23.0
