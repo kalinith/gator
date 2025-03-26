@@ -45,10 +45,10 @@ func (c *commands) run(s *state, cmd command) error {
 
 
 func handlerLogin(s *state, cmd command) error {
-	if len(os.Args) < 3 {
+	if len(cmd.args) == 0 {
 		return fmt.Errorf("no username provided for login")
 	}
-	login := os.Args[1]
+	login := cmd.args[0]
 	err := s.config.SetUser(login)
 	if err != nil {
 		return fmt.Errorf("unable to set Current User: %s", err)
@@ -58,31 +58,39 @@ func handlerLogin(s *state, cmd command) error {
 }
 
 func main() {
-	var args []string
-	conf := &config.Config{}
-	var err Error
+
+	commandhandler := make(map[string]func(*state, command) error)
+	commandhandler["login"] = handlerLogin
+
+	comm := commands{commandhandler}
 
 	if len(os.Args) < 2 {
 		fmt.Println("no arguments provided")
 		os.Exit(1)
 	}
+
+	args := []string{}
+
 	if len(os.Args) > 2 {
 		args = os.Args[2:]
-	} else {
-		args = []string{}
 	}
+	cmd := command{os.Args[1], args,}
 
-	cmd := &command{os.Args[1], args,}
-
-	conf, err := config.Read()
+	conf := &config.Config{}
+	var err error
+	*conf, err = config.Read()
 	if err != nil {
 		fmt.Printf("Error reading config:%s", err)
 		return
 	}
 	systemstate := &state{conf,}
 
-	var commandhandler map[string]func(*state, command) error
-	comm := commands{commandhandler}
-	comm.handler["login"] = handlerLogin
+	err = comm.run(systemstate, cmd)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+
 
 }
