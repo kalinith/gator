@@ -1,11 +1,18 @@
 package main
+import _ "github.com/lib/pq"
 import (
 	"Gator/internal/config"
+	"Gator/internal/database"
 	"os"
 	"fmt"
+	"time"
+	"context"
+	"database/sql"
+	"github.com/google/uuid"
 )
 
 type state struct {
+	db *database.Queries
 	config *config.Config
 }
 
@@ -49,11 +56,37 @@ func handlerLogin(s *state, cmd command) error {
 		return fmt.Errorf("no username provided for login")
 	}
 	login := cmd.args[0]
-	err := s.config.SetUser(login)
+	user, usrerr := s.db.GetUser(context.Background(), login)
+	if usrerr != nil{
+		return fmt.Errorf("Error checking user: %s", usrerr)
+	}
+
+	err := s.config.SetUser(user.Name)
 	if err != nil {
 		return fmt.Errorf("unable to set Current User: %s", err)
 	}
-	fmt.Printf("user has been set to %s\n", login)
+	fmt.Printf("user has been set to %s\n", user.Name)
+	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("no username provided for login")
+	}
+	dt := time.Now()
+	userparam := database.CreateUserParams{uuid.New(),dt,dt,cmd.args[0]}
+	user, err := s.db.CreateUser(context.Background(), userparam)
+	if err != nil {
+		return fmt.Errorf("user creation failed: %s\n", err)
+	}
+
+	err = s.config.SetUser(user.Name)
+	if err != nil {
+		return fmt.Errorf("unable to set Current User: %s", err)
+	}
+	fmt.Println("user has been created ")
+	fmt.Printf("ID: %v\nCreated At: %v\nUpdatedAt: %v\nName: %s\n",
+		user.ID,user.CreatedAt,user.UpdatedAt,user.Name)
 	return nil
 }
 
@@ -61,6 +94,7 @@ func main() {
 
 	commandhandler := make(map[string]func(*state, command) error)
 	commandhandler["login"] = handlerLogin
+	commandhandler["register"] = handlerRegister
 
 	comm := commands{commandhandler}
 
@@ -83,7 +117,15 @@ func main() {
 		fmt.Printf("Error reading config:%s", err)
 		return
 	}
-	systemstate := &state{conf,}
+
+	db, dberr := sql.Open("postgres", conf.DatabaseURL)
+
+	if dberr != nil {
+		fmt.Printf("Unable to connect to DB:%s", dberr)
+		return
+	}
+	dbQueries := database.New(db)
+	systemstate := &state{dbQueries, conf,}
 
 	err = comm.run(systemstate, cmd)
 	if err != nil {
