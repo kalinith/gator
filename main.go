@@ -90,11 +90,20 @@ func handlerRegister(s *state, cmd command) error {
 	return nil
 }
 
-func main() {
 
+func handlerReset(s *state, cmd command) error {
+	err := s.db.DeleteUsers(context.Background())
+	if err != nil {
+		return  fmt.Errorf("failed to reset users:%s\n", err)
+	}
+	return nil
+}
+
+func main() {
 	commandhandler := make(map[string]func(*state, command) error)
 	commandhandler["login"] = handlerLogin
 	commandhandler["register"] = handlerRegister
+	commandhandler["reset"] = handlerReset
 
 	comm := commands{commandhandler}
 
