@@ -90,6 +90,20 @@ func handlerRegister(s *state, cmd command) error {
 	return nil
 }
 
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return  fmt.Errorf("user fetch failed:%s\n", err)
+	}
+	for i := 0; i < len(users); i++ {
+		if users[i] == s.config.CurrentUser {
+			fmt.Printf("* %s (current)\n", users[i])
+		} else {
+			fmt.Printf("* %s\n", users[i]) 
+		}
+	}
+	return nil
+}
 
 func handlerReset(s *state, cmd command) error {
 	err := s.db.DeleteUsers(context.Background())
@@ -104,6 +118,7 @@ func main() {
 	commandhandler["login"] = handlerLogin
 	commandhandler["register"] = handlerRegister
 	commandhandler["reset"] = handlerReset
+	commandhandler["users"] = handlerUsers
 
 	comm := commands{commandhandler}
 
