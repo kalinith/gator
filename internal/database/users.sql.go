@@ -77,6 +77,7 @@ func (q *Queries) GetUser(ctx context.Context, name string) (User, error) {
 const getUsers = `-- name: GetUsers :many
 SELECT name
     FROM users
+    ORDER BY name
 `
 
 func (q *Queries) GetUsers(ctx context.Context) ([]string, error) {

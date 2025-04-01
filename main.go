@@ -85,7 +85,7 @@ func handlerRegister(s *state, cmd command) error {
 		return fmt.Errorf("unable to set Current User: %s", err)
 	}
 	fmt.Println("user has been created ")
-	fmt.Printf("ID: %v\nCreated At: %v\nUpdatedAt: %v\nName: %s\n",
+	fmt.Printf("ID: %v\nCreated At: %v\nUpdated At: %v\nName: %s\n",
 		user.ID,user.CreatedAt,user.UpdatedAt,user.Name)
 	return nil
 }
@@ -124,6 +124,30 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) < 2 {
+		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
+	}
+	user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
+	if usrErr != nil{
+		return fmt.Errorf("Error checking user: %s", usrErr)
+	}
+
+	dt := time.Now()
+	feedParams := database.CreateFeedParams{uuid.New(),dt,dt,cmd.args[0],cmd.args[1],user.ID}
+	feed, feedErr := s.db.CreateFeed(context.Background(), feedParams)
+	if feedErr != nil {
+		fmt.Errorf("Error saving feed: %v\n", feedErr)
+	}
+	fmt.Printf("ID: %v\nCreated At: %v\nUpdated At: %v\nName: %s\nURL:%v\nUser ID:%v\n",
+		feed.ID, feed.CreatedAt, feed.UpdatedAt, feed.Name, feed.Url, feed.UserID)
+	return nil
+}
+
+/*
+	userparam := database.CreateUserParams{uuid.New(),dt,dt,cmd.args[0]}
+*/
+
 func main() {
 	commandhandler := make(map[string]func(*state, command) error)
 	commandhandler["login"] = handlerLogin
@@ -131,6 +155,7 @@ func main() {
 	commandhandler["reset"] = handlerReset
 	commandhandler["users"] = handlerUsers
 	commandhandler["agg"] = handlerAgg
+	commandhandler["addfeed"] = handlerAddFeed
 
 	comm := commands{commandhandler}
 
