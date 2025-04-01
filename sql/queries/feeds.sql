@@ -9,3 +9,7 @@ $5,
 $6)
 RETURNING *;
 
+-- name: SelectFeeds :many
+SELECT f.name AS FeedName,f.url AS URL,u.name AS UserName
+  FROM feeds f INNER JOIN users u
+  ON f.user_id = u.id;

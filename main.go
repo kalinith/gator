@@ -144,9 +144,20 @@ func handlerAddFeed(s *state, cmd command) error {
 	return nil
 }
 
-/*
-	userparam := database.CreateUserParams{uuid.New(),dt,dt,cmd.args[0]}
-*/
+func handlerFeeds(s *state, cmd command) error {
+
+		feeds, err := s.db.SelectFeeds(context.Background())
+	if err != nil{
+		return fmt.Errorf("Error fetching feeds: %s", err)
+	}
+	for i := 0; i < len(feeds); i++ {
+		feed := feeds[i]
+		fmt.Printf("Feed Name: %v\n	URL:%v\n	User Name:%v\n",
+			feed.Feedname, feed.Url, feed.Username)
+	}
+	return nil
+
+}
 
 func main() {
 	commandhandler := make(map[string]func(*state, command) error)
@@ -156,6 +167,7 @@ func main() {
 	commandhandler["users"] = handlerUsers
 	commandhandler["agg"] = handlerAgg
 	commandhandler["addfeed"] = handlerAddFeed
+	commandhandler["feeds"] = handlerFeeds
 
 	comm := commands{commandhandler}
 
