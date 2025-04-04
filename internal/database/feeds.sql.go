@@ -54,6 +54,25 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 	return i, err
 }
 
+const selectFeedURL = `-- name: SelectFeedURL :one
+SELECT ID, name, url
+  FROM feeds
+  WHERE url = $1
+`
+
+type SelectFeedURLRow struct {
+	ID   uuid.UUID
+	Name string
+	Url  string
+}
+
+func (q *Queries) SelectFeedURL(ctx context.Context, url string) (SelectFeedURLRow, error) {
+	row := q.db.QueryRowContext(ctx, selectFeedURL, url)
+	var i SelectFeedURLRow
+	err := row.Scan(&i.ID, &i.Name, &i.Url)
+	return i, err
+}
+
 const selectFeeds = `-- name: SelectFeeds :many
 SELECT f.name AS FeedName,f.url AS URL,u.name AS UserName
   FROM feeds f INNER JOIN users u

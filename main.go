@@ -137,16 +137,23 @@ func handlerAddFeed(s *state, cmd command) error {
 	feedParams := database.CreateFeedParams{uuid.New(),dt,dt,cmd.args[0],cmd.args[1],user.ID}
 	feed, feedErr := s.db.CreateFeed(context.Background(), feedParams)
 	if feedErr != nil {
-		fmt.Errorf("Error saving feed: %v\n", feedErr)
+		return fmt.Errorf("Error saving feed: %v\n", feedErr)
 	}
+
 	fmt.Printf("ID: %v\nCreated At: %v\nUpdated At: %v\nName: %s\nURL:%v\nUser ID:%v\n",
 		feed.ID, feed.CreatedAt, feed.UpdatedAt, feed.Name, feed.Url, feed.UserID)
+
+	followParams := database.CreateFeedFollowParams{uuid.New(),dt,dt,user.ID, feed.ID}
+	follow, followErr := s.db.CreateFeedFollow(context.Background(), followParams)
+	if followErr != nil {
+		return fmt.Errorf("Error following feed: %v\n", followErr)
+	}
+	fmt.Printf("%s is now following the \"%v\" feed\n",follow.Username, follow.Feedname)
 	return nil
 }
 
 func handlerFeeds(s *state, cmd command) error {
-
-		feeds, err := s.db.SelectFeeds(context.Background())
+	feeds, err := s.db.SelectFeeds(context.Background())
 	if err != nil{
 		return fmt.Errorf("Error fetching feeds: %s", err)
 	}
@@ -156,8 +163,48 @@ func handlerFeeds(s *state, cmd command) error {
 			feed.Feedname, feed.Url, feed.Username)
 	}
 	return nil
+}
+
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("No URL provided")
+	}
+	user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
+	if usrErr != nil{
+		return fmt.Errorf("Error checking user: %s", usrErr)
+	}
+	feed, uErr := s.db.SelectFeedURL(context.Background(), cmd.args[0])
+	if uErr != nil{
+		return fmt.Errorf("Error fetching feed: %s", uErr)
+	}
+	dt := time.Now()
+	followParams := database.CreateFeedFollowParams{uuid.New(),dt,dt,user.ID, feed.ID}
+	follow, followErr := s.db.CreateFeedFollow(context.Background(), followParams)
+	if followErr != nil {
+		return fmt.Errorf("Error following feed: %v\n", followErr)
+	}
+	fmt.Printf("%s is now following the \"%v\" feed\n",follow.Username, follow.Feedname)
+	return nil
+}
+
+func handlerFollowing(s *state, cmd command) error {
+	user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
+	if usrErr != nil{
+		return fmt.Errorf("Error checking user: %s", usrErr)
+	}
+	following, err := s.db.GetFeedFollowsForUser(context.Background(),  user.Name)
+	if err != nil{
+		return fmt.Errorf("Error fetching feeds: %s", err)
+	}
+	for i := 0; i < len(following); i++ {
+		follow := following[i]
+		fmt.Printf("Feed Name: %v\n		User Name:%v\n",
+			follow.Feedname, follow.Username)
+	}
+	return nil
 
 }
+
 
 func main() {
 	commandhandler := make(map[string]func(*state, command) error)
@@ -168,6 +215,8 @@ func main() {
 	commandhandler["agg"] = handlerAgg
 	commandhandler["addfeed"] = handlerAddFeed
 	commandhandler["feeds"] = handlerFeeds
+	commandhandler["follow"] = handlerFollow
+	commandhandler["following"] = handlerFollowing
 
 	comm := commands{commandhandler}
 

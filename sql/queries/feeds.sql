@@ -13,3 +13,9 @@ RETURNING *;
 SELECT f.name AS FeedName,f.url AS URL,u.name AS UserName
   FROM feeds f INNER JOIN users u
   ON f.user_id = u.id;
+
+-- name: SelectFeedURL :one
+SELECT ID, name, url
+  FROM feeds
+  WHERE url = $1;
+
