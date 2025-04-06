@@ -50,6 +50,15 @@ func (c *commands) run(s *state, cmd command) error {
 	return nil
 } // This method runs a given command with the provided state if it exists.
 
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(s *state, c command) error {
+	return func(s *state, cmd command) error {
+		user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
+		if usrErr != nil{
+			return fmt.Errorf("Error checking user: %s", usrErr)
+		}
+		return handler(s, cmd, user)
+	}
+} //higher order function that takes a handler of the "logged in" type and returns a "normal" handler that we can register
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
@@ -94,7 +103,7 @@ func handlerUsers(s *state, cmd command) error {
 	users, err := s.db.GetUsers(context.Background())
 	if err != nil {
 		return  fmt.Errorf("user fetch failed:%s\n", err)
-	}
+	}	
 	for i := 0; i < len(users); i++ {
 		if users[i] == s.config.CurrentUser {
 			fmt.Printf("* %s (current)\n", users[i])
@@ -124,13 +133,9 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
 		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
-	}
-	user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
-	if usrErr != nil{
-		return fmt.Errorf("Error checking user: %s", usrErr)
 	}
 
 	dt := time.Now()
@@ -165,13 +170,9 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("No URL provided")
-	}
-	user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
-	if usrErr != nil{
-		return fmt.Errorf("Error checking user: %s", usrErr)
 	}
 	feed, uErr := s.db.SelectFeedURL(context.Background(), cmd.args[0])
 	if uErr != nil{
@@ -187,11 +188,7 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
-	user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
-	if usrErr != nil{
-		return fmt.Errorf("Error checking user: %s", usrErr)
-	}
+func handlerFollowing(s *state, cmd command, user database.User) error {
 	following, err := s.db.GetFeedFollowsForUser(context.Background(),  user.Name)
 	if err != nil{
 		return fmt.Errorf("Error fetching feeds: %s", err)
@@ -205,20 +202,18 @@ func handlerFollowing(s *state, cmd command) error {
 
 }
 
-
 func main() {
-	commandhandler := make(map[string]func(*state, command) error)
-	commandhandler["login"] = handlerLogin
-	commandhandler["register"] = handlerRegister
-	commandhandler["reset"] = handlerReset
-	commandhandler["users"] = handlerUsers
-	commandhandler["agg"] = handlerAgg
-	commandhandler["addfeed"] = handlerAddFeed
-	commandhandler["feeds"] = handlerFeeds
-	commandhandler["follow"] = handlerFollow
-	commandhandler["following"] = handlerFollowing
-
-	comm := commands{commandhandler}
+	comm := commands{make(map[string]func(*state, command) error)}
+	
+	comm.register("login", handlerLogin)
+	comm.register("register", handlerRegister)
+	comm.register("reset", handlerReset)
+	comm.register("users", handlerUsers)
+	comm.register("agg", handlerAgg)
+	comm.register("addfeed", middlewareLoggedIn(handlerAddFeed))
+	comm.register("feeds", handlerFeeds)
+	comm.register("follow", middlewareLoggedIn(handlerFollow))
+	comm.register("following", middlewareLoggedIn(handlerFollowing)) //lists feeds followed by current user
 
 	if len(os.Args) < 2 {
 		fmt.Println("no arguments provided")
