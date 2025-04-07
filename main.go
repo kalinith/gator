@@ -199,7 +199,12 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 			follow.Feedname, follow.Username)
 	}
 	return nil
+}
 
+func handlerUnFollow(s *state, cmd command, user database.User) error {
+	
+	
+	return nil
 }
 
 func main() {
@@ -214,6 +219,7 @@ func main() {
 	comm.register("feeds", handlerFeeds)
 	comm.register("follow", middlewareLoggedIn(handlerFollow))
 	comm.register("following", middlewareLoggedIn(handlerFollowing)) //lists feeds followed by current user
+	comm.register("unfollow", middlewareLoggedIn(handlerUnFollow))
 
 	if len(os.Args) < 2 {
 		fmt.Println("no arguments provided")
