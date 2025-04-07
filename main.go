@@ -202,8 +202,18 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 }
 
 func handlerUnFollow(s *state, cmd command, user database.User) error {
-	
-	
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
+	}
+	url, uErr := s.db.SelectFeedURL(context.Background(), cmd.args[0])
+	if uErr != nil {
+		return uErr
+	}
+	arg := database.DeleteFeedFollowsForUserParams{user.ID,url.ID}
+	err := s.db.DeleteFeedFollowsForUser(context.Background(), arg)
+	if err != nil {
+		return fmt.Errorf("unable to unfollow:%v", err)
+	}
 	return nil
 }
 
