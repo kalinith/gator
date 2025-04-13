@@ -60,6 +60,35 @@ func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) 
 	}
 } //higher order function that takes a handler of the "logged in" type and returns a "normal" handler that we can register
 
+func scrapeFeeds(s *state) error {
+	feed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("no feed to fetch:%v", err)
+	}
+
+	args := database.MarkFeedFetchedParams{LastFetchedAt: sql.NullTime{
+        Time:  time.Now(),
+        Valid: true,
+    }, ID: feed.ID}
+
+	err = s.db.MarkFeedFetched(context.Background(), args)
+	if err != nil {
+		return fmt.Errorf("issue saving fetch state:%v", err)
+	}
+
+	rss, err := FetchFeed(context.Background(), feed.Url)
+	if err != nil {
+		fmt.Printf("Fatal Error:%v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(rss.Channel.Title)
+	for _, item := range rss.Channel.Item {
+		fmt.Println(item.Title)
+	}
+	return nil
+}
+
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("no username provided for login")
@@ -115,21 +144,41 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 func handlerReset(s *state, cmd command) error {
-	err := s.db.DeleteUsers(context.Background())
+	err := s.db.DeleteFeedFollows(context.Background())
+	if err != nil {
+		return  fmt.Errorf("failed to reset feed_follows:%s\n", err)
+	}
+
+	err = s.db.DeleteUsers(context.Background())
 	if err != nil {
 		return  fmt.Errorf("failed to reset users:%s\n", err)
 	}
+
+	err = s.db.DeleteFeeds(context.Background())
+	if err != nil {
+		return  fmt.Errorf("failed to reset feeds:%s\n", err)
+	}
+
 	return nil
 }
 
 func handlerAgg(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
-	rss, err := FetchFeed(context.Background(), url)
-	if err != nil {
-		fmt.Printf("Fatal Error:%v\n", err)
-		os.Exit(1)
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
 	}
-	fmt.Println(rss)
+	time_between_reqs, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("invalid time format: %v", err)
+	}
+	ticker := time.NewTicker(time_between_reqs)
+	fmt.Println("Collecting feeds every %v", time_between_reqs)
+	for ; ; <-ticker.C {
+		err := scrapeFeeds(s)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\nwaiting %v\n", time_between_reqs)
+	}
 	return nil
 }
 
@@ -139,14 +188,14 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 	}
 
 	dt := time.Now()
-	feedParams := database.CreateFeedParams{uuid.New(),dt,dt,cmd.args[0],cmd.args[1],user.ID}
+	feedParams := database.CreateFeedParams{uuid.New(),dt,dt,cmd.args[0],cmd.args[1]}
 	feed, feedErr := s.db.CreateFeed(context.Background(), feedParams)
 	if feedErr != nil {
 		return fmt.Errorf("Error saving feed: %v\n", feedErr)
 	}
 
-	fmt.Printf("ID: %v\nCreated At: %v\nUpdated At: %v\nName: %s\nURL:%v\nUser ID:%v\n",
-		feed.ID, feed.CreatedAt, feed.UpdatedAt, feed.Name, feed.Url, feed.UserID)
+	fmt.Printf("ID: %v\nCreated At: %v\nUpdated At: %v\nName: %s\nURL:%v\nLast Fetched:%v\n",
+		feed.ID, feed.CreatedAt, feed.UpdatedAt, feed.Name, feed.Url, feed.LastFetchedAt)
 
 	followParams := database.CreateFeedFollowParams{uuid.New(),dt,dt,user.ID, feed.ID}
 	follow, followErr := s.db.CreateFeedFollow(context.Background(), followParams)

@@ -7,21 +7,22 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 const createFeed = `-- name: CreateFeed :one
-INSERT INTO feeds (id,created_at,updated_at,name,url,user_id)
+INSERT INTO feeds (id,created_at,updated_at,name,url,last_fetched_at)
 VALUES (
 $1,
 $2,
 $3,
 $4,
 $5,
-$6)
-RETURNING id, created_at, updated_at, name, url, user_id
+NULL)
+RETURNING id, created_at, updated_at, name, url, last_fetched_at
 `
 
 type CreateFeedParams struct {
@@ -30,7 +31,6 @@ type CreateFeedParams struct {
 	UpdatedAt time.Time
 	Name      string
 	Url       string
-	UserID    uuid.UUID
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, error) {
@@ -40,7 +40,6 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		arg.UpdatedAt,
 		arg.Name,
 		arg.Url,
-		arg.UserID,
 	)
 	var i Feed
 	err := row.Scan(
@@ -49,9 +48,47 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Url,
-		&i.UserID,
+		&i.LastFetchedAt,
 	)
 	return i, err
+}
+
+const getNextFeedToFetch = `-- name: GetNextFeedToFetch :one
+ SELECT id, created_at, updated_at, name, url, last_fetched_at
+  FROM feeds
+  Order by last_fetched_at Desc NULLS FIRST, name ASC
+  LIMIT 1
+`
+
+func (q *Queries) GetNextFeedToFetch(ctx context.Context) (Feed, error) {
+	row := q.db.QueryRowContext(ctx, getNextFeedToFetch)
+	var i Feed
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Url,
+		&i.LastFetchedAt,
+	)
+	return i, err
+}
+
+const markFeedFetched = `-- name: MarkFeedFetched :exec
+ UPDATE feeds
+  SET last_fetched_at = $1,
+  updated_at = $1
+  WHERE ID = $2
+`
+
+type MarkFeedFetchedParams struct {
+	LastFetchedAt sql.NullTime
+	ID            uuid.UUID
+}
+
+func (q *Queries) MarkFeedFetched(ctx context.Context, arg MarkFeedFetchedParams) error {
+	_, err := q.db.ExecContext(ctx, markFeedFetched, arg.LastFetchedAt, arg.ID)
+	return err
 }
 
 const selectFeedURL = `-- name: SelectFeedURL :one
@@ -75,8 +112,10 @@ func (q *Queries) SelectFeedURL(ctx context.Context, url string) (SelectFeedURLR
 
 const selectFeeds = `-- name: SelectFeeds :many
 SELECT f.name AS FeedName,f.url AS URL,u.name AS UserName
-  FROM feeds f INNER JOIN users u
-  ON f.user_id = u.id
+  FROM feeds f INNER JOIN feed_follows
+  ON f.ID = feed_follows.feed_id
+  INNER JOIN users u
+  ON feed_follows.user_id = u.id
 `
 
 type SelectFeedsRow struct {
