@@ -31,7 +31,6 @@ This application uses PostgreSQL and Goose for database migrations.
    ```sql
    CREATE DATABASE gator;
 
-
 Install Goose migration tool:
 
 `go install github.com/pressly/goose/v3/cmd/goose@latest`
@@ -41,8 +40,9 @@ and save it in your project folder.
 
 Run the database migrations:
 
-`cd *path/to/project/schema*
-goose postgres "postgres://username:password@localhost:5432/gator" up
+	cd *path/to/project/schema*
+	goose postgres "postgres://username:password@localhost:5432/gator" up
+
 
 This will automatically apply all migration files in order. The application includes several migrations that will create all necessary tables and seed data.
 
