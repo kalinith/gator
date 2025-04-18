@@ -11,21 +11,21 @@ import (
 	"github.com/google/uuid"
 )
 
-type state struct {
+type State struct {
 	db *database.Queries
 	config *config.Config
 }
 
-type command struct {
+type Command struct {
 	name string
 	args []string
 }
 
 type commands struct {
-	handler map[string]func(*state, command) error
+	handler map[string]func(*State, Command) error
 }
 
-func (c *commands) register(name string, f func(*state, command) error) {
+func (c *commands) register(name string, f func(*State, Command) error) {
 	if name == "" {
 		fmt.Println("Error: Empty command name provided")
 		return
@@ -36,9 +36,9 @@ func (c *commands) register(name string, f func(*state, command) error) {
 	}
 	c.handler[name] = f
 	return
-} // This method registers a new handler function for a command name.
+} // This method registers a new handler function for a  name.
 
-func (c *commands) run(s *state, cmd command) error {
+func (c *commands) run(s *State, cmd Command) error {
 	f := c.handler[cmd.name]
 	if  f == nil {
 		return fmt.Errorf("unable to retrieve command: %s", cmd.name)
@@ -48,48 +48,9 @@ func (c *commands) run(s *state, cmd command) error {
 		return fmt.Errorf("Failed to execute command: %s", err)
 	}
 	return nil
-} // This method runs a given command with the provided state if it exists.
+} // This method runs a given command with the provided State if it exists.
 
-func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(s *state, c command) error {
-	return func(s *state, cmd command) error {
-		user, usrErr := s.db.GetUser(context.Background(), s.config.CurrentUser)
-		if usrErr != nil{
-			return fmt.Errorf("Error checking user: %s", usrErr)
-		}
-		return handler(s, cmd, user)
-	}
-} //higher order function that takes a handler of the "logged in" type and returns a "normal" handler that we can register
-
-func scrapeFeeds(s *state) error {
-	feed, err := s.db.GetNextFeedToFetch(context.Background())
-	if err != nil {
-		return fmt.Errorf("no feed to fetch:%v", err)
-	}
-
-	args := database.MarkFeedFetchedParams{LastFetchedAt: sql.NullTime{
-        Time:  time.Now(),
-        Valid: true,
-    }, ID: feed.ID}
-
-	err = s.db.MarkFeedFetched(context.Background(), args)
-	if err != nil {
-		return fmt.Errorf("issue saving fetch state:%v", err)
-	}
-
-	rss, err := FetchFeed(context.Background(), feed.Url)
-	if err != nil {
-		fmt.Printf("Fatal Error:%v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println(rss.Channel.Title)
-	for _, item := range rss.Channel.Item {
-		fmt.Println(item.Title)
-	}
-	return nil
-}
-
-func handlerLogin(s *state, cmd command) error {
+func handlerLogin(s *State, cmd Command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("no username provided for login")
 	}
@@ -107,7 +68,7 @@ func handlerLogin(s *state, cmd command) error {
 	return nil
 }
 
-func handlerRegister(s *state, cmd command) error {
+func handlerRegister(s *State, cmd Command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("no username provided for login")
 	}
@@ -128,7 +89,7 @@ func handlerRegister(s *state, cmd command) error {
 	return nil
 }
 
-func handlerUsers(s *state, cmd command) error {
+func handlerUsers(s *State, cmd Command) error {
 	users, err := s.db.GetUsers(context.Background())
 	if err != nil {
 		return  fmt.Errorf("user fetch failed:%s\n", err)
@@ -143,7 +104,7 @@ func handlerUsers(s *state, cmd command) error {
 	return nil
 }
 
-func handlerReset(s *state, cmd command) error {
+func handlerReset(s *State, cmd Command) error {
 	err := s.db.DeleteFeedFollows(context.Background())
 	if err != nil {
 		return  fmt.Errorf("failed to reset feed_follows:%s\n", err)
@@ -162,7 +123,7 @@ func handlerReset(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAgg(s *state, cmd command) error {
+func handlerAgg(s *State, cmd Command) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
 	}
@@ -173,7 +134,7 @@ func handlerAgg(s *state, cmd command) error {
 	ticker := time.NewTicker(time_between_reqs)
 	fmt.Println("Collecting feeds every %v", time_between_reqs)
 	for ; ; <-ticker.C {
-		err := scrapeFeeds(s)
+		err := ScrapeFeeds(s)
 		if err != nil {
 			return err
 		}
@@ -182,7 +143,7 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command, user database.User) error {
+func handlerAddFeed(s *State, cmd Command, user database.User) error {
 	if len(cmd.args) < 2 {
 		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
 	}
@@ -206,7 +167,7 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func handlerFeeds(s *state, cmd command) error {
+func handlerFeeds(s *State, cmd Command) error {
 	feeds, err := s.db.SelectFeeds(context.Background())
 	if err != nil{
 		return fmt.Errorf("Error fetching feeds: %s", err)
@@ -219,7 +180,7 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command, user database.User) error {
+func handlerFollow(s *State, cmd Command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("No URL provided")
 	}
@@ -237,7 +198,7 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command, user database.User) error {
+func handlerFollowing(s *State, cmd Command, user database.User) error {
 	following, err := s.db.GetFeedFollowsForUser(context.Background(),  user.Name)
 	if err != nil{
 		return fmt.Errorf("Error fetching feeds: %s", err)
@@ -250,7 +211,7 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func handlerUnFollow(s *state, cmd command, user database.User) error {
+func handlerUnFollow(s *State, cmd Command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("not enough parameters. 2 expected but %n given.\n",len(cmd.args))
 	}
@@ -267,18 +228,18 @@ func handlerUnFollow(s *state, cmd command, user database.User) error {
 }
 
 func main() {
-	comm := commands{make(map[string]func(*state, command) error)}
+	comm := commands{make(map[string]func(*State, Command) error)}
 	
 	comm.register("login", handlerLogin)
 	comm.register("register", handlerRegister)
 	comm.register("reset", handlerReset)
 	comm.register("users", handlerUsers)
 	comm.register("agg", handlerAgg)
-	comm.register("addfeed", middlewareLoggedIn(handlerAddFeed))
+	comm.register("addfeed", MiddlewareLoggedIn(handlerAddFeed))
 	comm.register("feeds", handlerFeeds)
-	comm.register("follow", middlewareLoggedIn(handlerFollow))
-	comm.register("following", middlewareLoggedIn(handlerFollowing)) //lists feeds followed by current user
-	comm.register("unfollow", middlewareLoggedIn(handlerUnFollow))
+	comm.register("follow", MiddlewareLoggedIn(handlerFollow))
+	comm.register("following", MiddlewareLoggedIn(handlerFollowing)) //lists feeds followed by current user
+	comm.register("unfollow", MiddlewareLoggedIn(handlerUnFollow))
 
 	if len(os.Args) < 2 {
 		fmt.Println("no arguments provided")
@@ -290,7 +251,7 @@ func main() {
 	if len(os.Args) > 2 {
 		args = os.Args[2:]
 	}
-	cmd := command{os.Args[1], args,}
+	cmd := Command{os.Args[1], args,}
 
 	conf := &config.Config{}
 	var err error
@@ -307,9 +268,9 @@ func main() {
 		return
 	}
 	dbQueries := database.New(db)
-	systemstate := &state{dbQueries, conf,}
+	systemState := &State{dbQueries, conf,}
 
-	err = comm.run(systemstate, cmd)
+	err = comm.run(systemState, cmd)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
