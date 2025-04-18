@@ -227,6 +227,27 @@ func handlerUnFollow(s *State, cmd Command, user database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *State, cmd Command, user database.User) error {
+	var limit int32
+	var intErr error
+	limit = 2
+	if len(cmd.args) > 0 {
+		limit, intErr = StrToInt(cmd.args[0])
+		if intErr != nil {
+			return intErr
+		}
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{user.ID, limit})
+	if err != nil{
+		return fmt.Errorf("Failed to fetch posts: %v", err)
+	}
+	for _, post := range posts {
+		fmt.Printf("Title      : %s\nUrl        : %s\nDescription: %s\nPublishedAt: %s\n\n",post.Title, post.Url, post.Description, post.PublishedAt)
+	}
+	return nil
+}
+
 func main() {
 	comm := commands{make(map[string]func(*State, Command) error)}
 	
@@ -240,6 +261,7 @@ func main() {
 	comm.register("follow", MiddlewareLoggedIn(handlerFollow))
 	comm.register("following", MiddlewareLoggedIn(handlerFollowing)) //lists feeds followed by current user
 	comm.register("unfollow", MiddlewareLoggedIn(handlerUnFollow))
+	comm.register("browse", MiddlewareLoggedIn(handlerBrowse))
 
 	if len(os.Args) < 2 {
 		fmt.Println("no arguments provided")

@@ -8,6 +8,8 @@ import (
 	"context"
 	"database/sql"
 	"github.com/google/uuid"
+	"strconv"
+	"math"
 )
 
 func MiddlewareLoggedIn(handler func(s *State, cmd Command, user database.User) error) func(s *State, c Command) error {
@@ -76,33 +78,6 @@ func ScrapeFeeds(s *State) error {
     	}
 		fmt.Println(post)
 	}
-/*	Update your scraper to save posts. Instead of printing out the titles of the posts, save them to the database!
-
-	If you encounter an error where the post with that URL already exists, just ignore it. That will happen a lot.
-	If it's a different error, you should probably log it.
-	Make sure that you're parsing the "published at" time properly from the feeds. Sometimes they might be in a
-	different format than you expect, so you might need to handle that.
-	You may have to manually convert the data into database/sql types.
-
-
-
-
-type RSSItem struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	PubDate     string `xml:"pubDate"`
-}
-
-	ID          uuid.UUID
-	CreatedAt   time.Time
-	Title       string
-	Url         string
-	Description sql.NullString
-	PublishedAt time.Time
-	FeedID      uuid.UUID
-*/
-
 	return nil
 }
 
@@ -122,4 +97,21 @@ func parseDate(dateStr string) (time.Time, error) {
     }
     
     return time.Time{}, fmt.Errorf("unable to parse date: %s", dateStr)
+}
+
+func StrToInt(str string) (int32, error) {
+	int, err := strconv.Atoi(str)
+	if err != nil {
+	    return 0, fmt.Errorf("invalid numeric value '%s': %v", str, err)
+	}
+
+	if int <= 0 {
+	    return 0, fmt.Errorf("number must be a positive number")
+	}
+
+	if int > math.MaxInt32 {
+	    return 0, fmt.Errorf("numeber is too large")
+	}
+	return int32(int), nil
+
 }
