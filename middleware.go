@@ -1,7 +1,7 @@
 package main
 import "github.com/lib/pq"
 import (
-	"Gator/internal/database"
+	"gator/internal/database"
 	"os"
 	"fmt"
 	"time"
